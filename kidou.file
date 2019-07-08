@@ -1,0 +1,8 @@
+#!/bin/sh -e
+#
+# /etc/rc.local
+if id pi; then
+    userdel -r pi #piユーザーを削除
+fi
+python /home/user/program
+exit 0
