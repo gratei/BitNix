@@ -1,5 +1,4 @@
-cmdline.txt
-config.txt
+セットアップ.txt
 *.spec
 .DS_Store
 ./command/setup.command
