@@ -1,4 +1,8 @@
 セットアップ.txt
-*.spec
+main2.spec
 .DS_Store
 ./command/setup.command
+__pycache__/
+build/
+dist/
+RealtimeAPI.py
