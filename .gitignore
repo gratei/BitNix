@@ -1,4 +1,4 @@
 .DS_Store
-./command/setup.command
+command/setup.command
 .gitignore
 yobi/
