@@ -4,5 +4,5 @@ main2.spec
 RealtimeAPI.py
 dist/
 build/
-.gitigonre
+.gitignore
 yobi/
