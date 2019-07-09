@@ -2,3 +2,4 @@ cmdline.txt
 config.txt
 *.spec
 .DS_Store
+./command/setup.command
