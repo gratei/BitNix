@@ -1,8 +1,4 @@
-main2.spec
 .DS_Store
 ./command/setup.command
-RealtimeAPI.py
-dist/
-build/
 .gitignore
 yobi/
