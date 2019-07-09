@@ -1,7 +1,3 @@
-
-import RealtimeAPI as RTAPI1
-
-import threading
 import time
 import serial
 import json
@@ -9,62 +5,134 @@ import ast
 import sys
 import datetime
 import random
+import requests
+import os
 
-getticker = ""
-getboard = ""
-getexecutions = ""
+import RPi.GPIO as GPIO
 
-def realtimeTicker(): #リアルタイムAPIを用いてTickerの最新情報を取得
-    while True:
-        url = 'wss://ws.lightstream.bitflyer.com/json-rpc'
-        tickerurl = 'lightning_ticker_FX_BTC_JPY'
-        channel = tickerurl
-        realTicker = RTAPI1.RealtimeAPI(url=url, channel=channel)
-        realTicker.run()
-        time.sleep(10)
-
-def dispticker(): #realtimeTickerで取得した最新情報をグローバル変数gettickerに格納
-    global getticker
-    maeticker = {'channel': 'lightning_ticker_FX_BTC_JPY', 'message': {'product_code': 'FX_BTC_JPY', 'timestamp': '2019-01-10T12:19:25.8426304Z', 'tick_id': 64804420, 'best_bid':409909, 'best_ask': 409925, 'best_bid_size': 0.38, 'best_ask_size': 0.14, 'total_bid_depth': 11403.18951766, 'total_ask_depth': 10453.35219681, 'ltp': 409909, 'volume': 366319.37355456, 'volume_by_product': 366319.37355456}}
-    while True:
-        getticker = RTAPI1.nowticker
-        if getticker['message']['ltp'] != maeticker['message']['ltp']:
-            maeticker = getticker
-        time.sleep(0.01)
-
-def sendToArduino():
-    global getticker
-    ser = serial.Serial('COM4', 9600)
-    time.sleep(3)
-    while True:
-        now = datetime.datetime.now()
-        sendValue = getticker['message']['ltp']
-        ser.write(b"a")
-        ser.write(str(sendValue).encode())
-        time.sleep(0.1)
-        if now.minute % 5 == 0 and now.second == 0:
-            for i in range(20):
-                num = random.randint(0,999999)
-                ser.write(b"a")
-                ser.write(str(num).encode())
-                time.sleep(0.1)
-
-def main():
-    global getticker
-    global getboard
-    global getexecutions
-
-    thread_1 = threading.Thread(target=realtimeTicker)
-    thread_2 = threading.Thread(target=dispticker)
-    thread_3 = threading.Thread(target=sendToArduino)
+class nixie_markey(object):
+    def __init__(self):
+        global status
+        status = 2
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(17,GPIO.IN, GPIO.PUD_UP)
+        GPIO.setup(3,GPIO.IN, GPIO.PUD_UP)
+        GPIO.setup(4,GPIO.IN, GPIO.PUD_UP)
+        GPIO.setup(18,GPIO.OUT)
+        GPIO.add_event_detect(17, GPIO.FALLING, callback=self.switchpush, bouncetime=300)
+        GPIO.add_event_detect(3, GPIO.FALLING, callback=self.reboot, bouncetime=10)
+        GPIO.add_event_detect(4, GPIO.FALLING, callback=self.shutdown, bouncetime=10)
+        GPIO.output(18,GPIO.LOW)
+        #print("init kidou")
 
 
-    thread_1.start()
-    time.sleep(2)  #通信がはじまってから値をとってくるようにする
-    #thread_4.start()
-    thread_2.start()
-    thread_3.start()
-    #mySQLaccesstest()
+    def main(self):
+        global status
+        global ser
+        ser = serial.Serial('/dev/serial0', 9600, timeout = 10)
+        time.sleep(1)
+        num = random.randint(0,99999999)
+        iti = random.randint(0,9)
+        sendticker = str(00000000).encode()
+        try:
+            while True:
+                if status % 20 == 0: #BTC_FX mode
+                    try:
+                        for i in range(3):
+                            ser.write(b"a")
+                            ser.write(sendticker)
+                            time.sleep(0.05)
+                            ser.write(b"e")
+                            ser.write(sendticker)
+                            time.sleep(0.05)
+                        getticker = requests.get('https://api.bitflyer.com/v1/getticker?product_code=FX_BTC_JPY').json()
+                        ticker = int(getticker['ltp'])
+                        now = datetime.datetime.now()
+                        keta = str(ticker).zfill(8)
+                        sendticker = keta.encode()
+                        if now.minute % 5 == 0 and now.second == 0:
+                            ser.write(b"b")
+                            time.sleep(1)
+                    except:
+                        time.sleep(1)
+
+                elif status % 20 ==1 : #random_number mode @ 10s
+                    now = datetime.datetime.now()
+                    sendvalue = (str(iti)+"."+str(num)).encode()
+                    #sendvalue = ("0."+str(num)).encode()
+                    ser.write(b"a")
+                    ser.write(sendvalue)
+                    time.sleep(0.05)
+                    ser.write(b"e")
+                    ser.write(sendvalue)
+                    time.sleep(0.1)
+                    if now.second %10== 0:
+                        ser.write(b"b")
+                        time.sleep(1)
+                        num = random.randint(0,99999999)
+                        iti = random.randint(0,9)
+                elif status % 20 ==2 : #clock mode
+                    now = datetime.datetime.now()
+                    jikan = str(now.hour).zfill(2)
+                    fun = str(now.minute).zfill(2)
+                    byou = str(now.second).zfill(2)
+                    nen = str(now.year%100)
+                    tuki = str(now.month).zfill(2)
+                    niti = str(now.day).zfill(2)
+                    ima = (jikan +"."+ fun +"."+ byou).encode()
+                    imadate = (nen +"."+tuki+"."+niti).encode()
+                    ser.write(b"a")
+                    ser.write(ima)
+                    time.sleep(0.05)
+                    ser.write(b"e")
+                    ser.write(imadate)
+                    time.sleep(0.1)
+                    if now.minute % 5 == 0 and now.second == 0:
+                        ser.write(b"b")
+                        time.sleep(1)
+                else:
+                    status = 0
+
+        except KeyboardInterrupt:
+            GPIO.output(18,GPIO.HIGH)
+            GPIO.cleanup()
+            print("break")
+            ser.close()
+
+    def switchpush(self, channel):
+        global status
+        global ser
+        ser.write(b"c")
+        GPIO.output(18,GPIO.HIGH)
+        time.sleep(0.3)
+        GPIO.output(18,GPIO.LOW)
+        status += 1
+
+    def shutdown(self, channel):
+        global ser
+        ser.write(b"e")
+        ser.close()
+        GPIO.output(18,GPIO.HIGH)
+        GPIO.cleanup()
+        os.system("sudo shutdown -h now")
+        sys.exit()
+        time.sleep(3)
+        #print("shutdown no tumori")
+
+    def reboot(self, channel):
+        global ser
+        ser.close()
+        GPIO.output(18,GPIO.HIGH)
+        GPIO.cleanup()
+        os.system("sudo reboot")
+        sys.exit()
+        time.sleep(3)
+        #print("shutdown no tumori")
 
 if __name__ == "__main__":
-    main()
+    nix = nixie_markey()
+    #try:
+    nix.main()
+    #except KeyboardInterrupt:
+    #    print("break")
